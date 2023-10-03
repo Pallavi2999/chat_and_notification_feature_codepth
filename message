@@ -1,0 +1,74 @@
+import React, { useState } from 'react';
+import { useCollectionData } from 'react-firebase-hooks/firestore';
+import firebase from 'firebase/app';
+import 'firebase/firestore';
+
+const Chat = ({ currentUser, selectedUser }) => {
+  const [newMessage, setNewMessage] = useState('');
+  const firestore = firebase.firestore();
+
+  const messagesRef = firestore.collection('messages');
+  const query = messagesRef
+    .where('chatId', '==', generateChatId(currentUser.uid, selectedUser.uid))
+    .orderBy('createdAt')
+    .limit(25);
+
+  const [messages] = useCollectionData(query, { idField: 'id' });
+
+  const handleSendMessage = async () => {
+    if (newMessage.trim() === '') return;
+
+    await messagesRef.add({
+      text: newMessage,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      senderId: currentUser.uid,
+      chatId: generateChatId(currentUser.uid, selectedUser.uid),
+    });
+
+    setNewMessage('');
+  };
+
+  return (
+    <div className="chat">
+      <div className="chat-messages">
+        {messages &&
+          messages.map((message) => (
+            <div key={message.id} className={message.senderId === currentUser.uid ? 'sent' : 'received'}>
+              {message.text}
+            </div>
+          ))}
+      </div>
+      <input
+        type="text"
+        placeholder="Type your message..."
+        value={newMessage}
+        onChange={(e) => setNewMessage(e.target.value)}
+      />
+      <button onClick={handleSendMessage}>Send</button>
+    </div>
+  );
+};
+
+export default Chat;
+
+function generateChatId(uid1, uid2) {
+  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
+
+
+// Function to send a push notification
+function sendNotification(recipientToken, title, body) {
+  const message = {
+    notification: {
+      title,
+      body,
+    },
+    token: recipientToken,
+  };
+
+  firebase.messaging().send(message);
+}
+
+// Example usage in your code
+const recipientToken = 'RECIPIENT_DEVICE_TOKEN'; // Get this from the user's device
+sendNotification(recipientToken, 'New Match', 'You have a new match!');
